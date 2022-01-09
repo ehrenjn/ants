@@ -1,4 +1,5 @@
 // We don't really need p5 for this... can just use a canvas
+// ant positions should be the middle of their bodies, not the top left corner
 
 "use strict";
 
@@ -9,17 +10,20 @@ const url = "ws://ec2-174-129-172-233.compute-1.amazonaws.com:8080/";
 const antSocket = new WebSocket(url);
 const userId = Math.random();
 const userColor = [
-    randInt(0xA0, 0xFF), 
-    randInt(0xA0, 0xFF), 
-    randInt(0xA0, 0xFF),
+    randInt(0, 0xFF), 
+    randInt(0, 0xFF), 
+    randInt(0, 0xFF),
 ];
 
 
 function setup() {
     createCanvas(400, 400);
-    allAnts.push(new Ant(10, 10));
-    allAnts.push(new Ant(60, 80));
-    allAnts.push(new Ant(20, 90));
+    for (let _ = 0; _ < 10; _++) {
+        allAnts.push(new Ant(
+            randInt(10, width),
+            randInt(10, height)
+        ));
+    }
 }
 
 function draw() {
@@ -27,22 +31,33 @@ function draw() {
 
     let newAnts = [];
     allAnts.forEach(ant => {
+        if (Math.abs(ant.dx) > 2) { 
+            ant.dx = (ant.dx/Math.abs(ant.dx)) * 2
+        }
+        if (Math.abs(ant.dy) > 2) { 
+            ant.dy = (ant.dy/Math.abs(ant.dy)) * 2
+        }
         if (ant.x > width) {
             ant.x = width;
+            ant.dx *= -1;
         }
         if (ant.y < 0) {
-            ant.y = 0
+            ant.y = 0;
+            ant.dy *= -1;
         }
         if (ant.x < 0) {
             ant.x = 0;
+            ant.dx *= -1;
         }
         if (ant.y >= height) {
             antQueue.push(ant);
         } else {
             fill(ant.color[0], ant.color[1], ant.color[2]);
             square(ant.x, ant.y, 10, 2);
-            ant.y += randInt(0, 1) ? 1 : -1;
-            ant.x += randInt(0, 1) ? 1 : -1;
+            ant.dy += randElement([-0.25,0,0.25]);
+            ant.dx += randElement([-0.25,0,0.25]);
+            ant.x += ant.dx;
+            ant.y += ant.dy;
             newAnts.push(ant);
         }
     });
@@ -53,6 +68,8 @@ function draw() {
 function Ant(x, y) {
     this.x = x;
     this.y = y;
+    this.dx = 0;
+    this.dy = 0;
     this.color = userColor;
 }
 
@@ -102,4 +119,8 @@ antSocket.onmessage = function(event) {
 function randInt(min, max) {
     let valueRange = max - min + 1; // +1 to be inclusive
     return Math.floor(Math.random() * valueRange) + min;
+}
+
+function randElement(ary) {
+    return ary[randInt(0, ary.length - 1)];
 }
