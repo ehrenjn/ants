@@ -8,6 +8,11 @@ let readyToSendAnts = false;
 const url = "ws://ec2-174-129-172-233.compute-1.amazonaws.com:8080/";
 const antSocket = new WebSocket(url);
 const userId = Math.random();
+const userColor = [
+    randInt(0xA0, 0xFF), 
+    randInt(0xA0, 0xFF), 
+    randInt(0xA0, 0xFF),
+];
 
 
 function setup() {
@@ -25,6 +30,7 @@ function draw() {
         if (ant.y >= width) {
             antQueue.push(ant);
         } else {
+            fill(ant.color[0], ant.color[1], ant.color[2]);
             square(ant.x, ant.y, 10, 2);
             ant.y = (ant.y + 1);
             newAnts.push(ant);
@@ -37,6 +43,7 @@ function draw() {
 function Ant(x, y) {
     this.x = x;
     this.y = y;
+    this.color = userColor;
 }
 
 
@@ -73,7 +80,6 @@ antSocket.onmessage = function(event) {
     }
     
     else if (data.type == 'ant') {
-        console.log("GOT ANT");
         let newAnts = data.data;
         newAnts.forEach(ant => {
             ant.y = 0;
@@ -83,14 +89,7 @@ antSocket.onmessage = function(event) {
 }
 
 
-function randomColor() {
-    let color;
-    do {
-        color = "#"
-        for (var i = 0; i < 6; i++) {
-            let newDigit = randInt(0, 15);
-            color += newDigit.toString(16);
-        }
-    } while (color.match(/#(([abcdef].....)|(..[abcdef]...)|(....[abcdef].))/) === null); //make sure color is bright
-    return color;
+function randInt(min, max) {
+    let valueRange = max - min + 1; // +1 to be inclusive
+    return Math.floor(Math.random() * valueRange) + min;
 }
