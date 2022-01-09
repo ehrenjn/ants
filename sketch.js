@@ -18,10 +18,10 @@ const userColor = [
 
 function setup() {
     createCanvas(400, 400);
-    for (let _ = 0; _ < 10; _++) {
+    for (let _ = 0; _ < 100; _++) {
         allAnts.push(new Ant(
-            randInt(10, width),
-            randInt(10, height)
+            width/2,//randInt(10, width),
+            height/2//randInt(10, height)
         ));
     }
 }
@@ -31,33 +31,35 @@ function draw() {
 
     let newAnts = [];
     allAnts.forEach(ant => {
-        if (Math.abs(ant.dx) > 2) { 
-            ant.dx = (ant.dx/Math.abs(ant.dx)) * 2
-        }
-        if (Math.abs(ant.dy) > 2) { 
-            ant.dy = (ant.dy/Math.abs(ant.dy)) * 2
-        }
         if (ant.x > width) {
             ant.x = width;
-            ant.dx *= -1;
+            ant.direction = Math.random() * Math.PI * 2;
         }
         if (ant.y < 0) {
             ant.y = 0;
-            ant.dy *= -1;
+            ant.direction = Math.random() * Math.PI * 2;
         }
         if (ant.x < 0) {
             ant.x = 0;
-            ant.dx *= -1;
+            ant.direction = Math.random() * Math.PI * 2;
         }
         if (ant.y >= height) {
             antQueue.push(ant);
         } else {
             fill(ant.color[0], ant.color[1], ant.color[2]);
-            square(ant.x, ant.y, 10, 2);
-            ant.dy += randElement([-0.25,0,0.25]);
-            ant.dx += randElement([-0.25,0,0.25]);
-            ant.x += ant.dx;
-            ant.y += ant.dy;
+            square(ant.x, ant.y, 5, 2);
+            if (Math.random() > 0.2) {
+                let change_amount = (Math.PI / 20) * randomSign(); //Math.random() * (Math.PI / 16);
+                ant.direction += change_amount * randomSign();
+            }
+            //let change_amount = (Math.PI / 50) * randomSign(); //Math.random() * (Math.PI / 16);
+            //ant.direction += change_amount * randomSign();
+            ant.direction %= Math.PI * 2; // normalize direction to be between 0 and 2 pi
+            
+            // move at a velocity of 1
+            ant.x += Math.sin(ant.direction);
+            ant.y += Math.cos(ant.direction);
+
             newAnts.push(ant);
         }
     });
@@ -68,8 +70,7 @@ function draw() {
 function Ant(x, y) {
     this.x = x;
     this.y = y;
-    this.dx = 0;
-    this.dy = 0;
+    this.direction = Math.random() * 2 * Math.PI;
     this.color = userColor;
 }
 
@@ -123,4 +124,8 @@ function randInt(min, max) {
 
 function randElement(ary) {
     return ary[randInt(0, ary.length - 1)];
+}
+
+function randomSign() {
+    return randElement([-1, 1]);
 }
