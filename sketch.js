@@ -27,12 +27,22 @@ function draw() {
 
     let newAnts = [];
     allAnts.forEach(ant => {
-        if (ant.y >= width) {
+        if (ant.x > width) {
+            ant.x = width;
+        }
+        if (ant.y < 0) {
+            ant.y = 0
+        }
+        if (ant.x < 0) {
+            ant.x = 0;
+        }
+        if (ant.y >= height) {
             antQueue.push(ant);
         } else {
             fill(ant.color[0], ant.color[1], ant.color[2]);
             square(ant.x, ant.y, 10, 2);
-            ant.y = (ant.y + 1);
+            ant.y += randInt(0, 1) ? 1 : -1;
+            ant.x += randInt(0, 1) ? 1 : -1;
             newAnts.push(ant);
         }
     });
