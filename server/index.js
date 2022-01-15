@@ -2,39 +2,106 @@ const WebSock = require("ws")
 const wss = new WebSock.WebSocketServer({ port: 8080 });
 
 
+// Ridiculous? Yes. Works as long as the dicts aren't too big? Yes.
+function Map() {
+	this._map = {};
+
+	// TODO: 💀 
+	this.findVal = function(val) {
+		for (var x in this._map) {
+			for var(y in this._map) {
+				if this._map[x][y] === val :
+					return [x, y];
+			}
+		}
+		return [undefined, undefined]
+	};
+
+	this.getVal = function (x, y) {
+		return this._map[x][y];
+	};
+
+	this.setVal = function (x, y, val) {
+		if (x in this._map === false) {
+			this._map[x] = {};
+		}	  
+		this._map[x][y] = val;
+	};
+
+	this.findMin = function (func) {
+		x = _map.keys()[0]
+		y = _map.keys[x].keys()[0]
+		best = [x, y, _map(x, y), func(x, y, _map(x, y))]
+		for (var x in this._map) {
+			for var(y in this._map) {
+				val = func(x, y, _map(x, y))
+				if this._map[x][y] < best[3] {
+					best[0] = x
+					best[1] = y
+					best[2] = this._map[x][y]
+					best[3] = val
+				}
+			}
+		}	
+		return best
+	}
+}
+
 const mapper = {
 
-	map: [],
+	map: new Map(),
+	mapOld: new Map(),
 
 	idToWs: {},
 
-	getLeft: function (id) {
-		if (this.map.indexOf(id) == 0) {
-			return (this.map[this.map.length - 1])
-		} 
-		else {
-			return (this.map[this.map.indexOf(id) - 1])
-		}  
+	getIdRelativeToId: function (rel_x, rel_y, id) {	
+		[x, y] = this.map.findVal(id)
+		x += rel_x
+		y += rel_y
+		return this.map.getVal(x, y)	
 	}, 
 
-	getRight: function (id) {
-		if (this.map.indexOf(id) == this.map.length - 1) {
-			return (this.map[0])
-		} 
-		else {
-			return (this.map[this.map.indexOf(id) + 1])
-		}  
-	},
-
 	isInMap: function(id) {
-		console.log(this)
-		return this.map.includes(id)
+		return (this.map.findVal(id)[0] === undefined)
 	},
 
 	addClient: function(id, ws) {
-		this.map.push(id)
-		this.idToWs[id] = ws
-	}
+		[x, y] = this.mapOld.findVal(id)
+		if x != undefined {
+			this.map.setVal(x, y, id)
+			this.idToWs[id] = ws
+		}
+
+		else {
+			
+			[x, y, id, _] = this.map.findMin(function (x, y) {
+							return Math.max([x, y])
+						})
+
+			// now we need to find a place to add them, free space that's
+			// adjacent I guess
+			adjacentOffsets = [[0, -1], [0, 1], [1, 0], [-1, 0]]
+			newLoc = [undefined, undefined]
+			for (offset in adjacentOffsets) {
+				if (this.getIdRelativeToId(offset[0], offset[1], id) === undefined) {
+					newLoc = [x + offset[0], y + offset[1]]
+					break
+				}
+			}
+			
+			x = newLoc[0]
+			y = newLoc[1]
+			this.map.setVal(x, y, id)
+			this.mapOld.setVal(x, y, id)
+			this.idToWs[id] = ws
+		}
+	},
+
+	pruneClient: function(id, ws) {
+//		this.map.push(id)
+//		this.idToWs[id] = ws
+	},
+ 
 };
 
 wss.on('connection', function connection(ws) {
