@@ -1,10 +1,17 @@
 // We don't really need p5 for this... can just use a canvas
 // ant positions should be the middle of their bodies, not the top left corner
+// ant turning is ok but looks too bouncy when they hit a wall
+    // also, the reference video does basically the same turning as I do except I think each ant spends multiple frames actually doing each turn
+// what happens if you disconnect temporarily, so the server forgets about you, and then you start sending ants again?
+    // almost feels like we need a new system to make sure no ants are forgotten
+// if an ant thinks too long it dies as if from overthinking
+
 
 "use strict";
 
 let allAnts = [];
 let antQueue = [];
+let allFood = [];
 let readyToSendAnts = false;
 const url = "ws://ec2-174-129-172-233.compute-1.amazonaws.com:8080/";
 const antSocket = new WebSocket(url);
@@ -15,55 +22,104 @@ const userColor = [
     randInt(0, 0xFF),
 ];
 
+const ANT_RADIUS = 7;
+const FOOD_RADIUS = 10;
+
 
 function setup() {
-    createCanvas(400, 400);
+    createCanvas(displayWidth, displayHeight);
     for (let _ = 0; _ < 100; _++) {
         allAnts.push(new Ant(
-            width/2,//randInt(10, width),
-            height/2//randInt(10, height)
+            width/2,
+            height/2
         ));
     }
 }
 
-function draw() {
-    background(220);
+
+function updateFood(allFood) {
+    if (randChance(0.3) && allFood.length < 100) {
+        allFood.push(new Food());
+    }
+
+    let newFood = [];
+
+    fill(0, 255, 0);
+    allFood.forEach(food => {
+        if (!food.eaten) {
+            circle(food.x, food.y, FOOD_RADIUS);
+            newFood.push(food);
+        }
+    });
+
+    return newFood;
+}
+
+
+function boundCoord(x, y) {
+    if (x > width) x = width;
+    if (y > height) y = height;
+    if (y < 0) y = 0;
+    if (x < 0) x = 0;
+    return [x, y];
+}
+
+
+function updateAnts(allAnts, antQueue) {
+    let locationMapper = new LocationMapper();
+    allAnts.forEach(locationMapper.insert.bind(locationMapper));
+    allFood.forEach(locationMapper.insert.bind(locationMapper));
 
     let newAnts = [];
     allAnts.forEach(ant => {
-        if (ant.x > width) {
-            ant.x = width;
+
+        // ants pick up items
+        locationMapper.nearbyObjects(ant.x, ant.y).forEach(obj => {
+            if (obj.constructor == Food && !obj.eaten) {
+                obj.eaten = true;
+            }
+        });
+
+        // ant chooses new direction
+        if (ant.hitWall) { // ant hit a wall last frame
+            ant.hitWall = false;
             ant.direction = Math.random() * Math.PI * 2;
         }
-        if (ant.y < 0) {
-            ant.y = 0;
-            ant.direction = Math.random() * Math.PI * 2;
+        else if (randChance(0.2)) {
+            let change_amount = (Math.PI / 20) * randSign(); //Math.random() * (Math.PI / 16);
+            ant.direction += change_amount * randSign();
         }
-        if (ant.x < 0) {
-            ant.x = 0;
-            ant.direction = Math.random() * Math.PI * 2;
+        ant.direction %= Math.PI * 2; // normalize direction to be between 0 and 2 pi
+
+        // update ant location
+        ant.x += Math.sin(ant.direction); // ants move at velocity 1
+        ant.y += Math.cos(ant.direction);
+
+        // bound out of bound ants
+        if (ant.x > width || ant.y < 0 || ant.x < 0) {
+            ant.hitWall = true;
+            [ant.x, ant.y] = boundCoord(ant.x, ant.y);
         }
+
+        // either send ant to server or draw it
         if (ant.y >= height) {
             antQueue.push(ant);
         } else {
             fill(ant.color[0], ant.color[1], ant.color[2]);
-            square(ant.x, ant.y, 5, 2);
-            if (Math.random() > 0.2) {
-                let change_amount = (Math.PI / 20) * randomSign(); //Math.random() * (Math.PI / 16);
-                ant.direction += change_amount * randomSign();
-            }
-            //let change_amount = (Math.PI / 50) * randomSign(); //Math.random() * (Math.PI / 16);
-            //ant.direction += change_amount * randomSign();
-            ant.direction %= Math.PI * 2; // normalize direction to be between 0 and 2 pi
-            
-            // move at a velocity of 1
-            ant.x += Math.sin(ant.direction);
-            ant.y += Math.cos(ant.direction);
-
+            circle(ant.x, ant.y, ANT_RADIUS);
             newAnts.push(ant);
         }
     });
-    allAnts = newAnts;
+
+    return newAnts;
+}
+
+
+function draw() {
+    background(220);
+
+    allAnts = updateAnts(allAnts, antQueue);
+    allFood = updateFood(allFood);
 }
 
 
@@ -72,6 +128,33 @@ function Ant(x, y) {
     this.y = y;
     this.direction = Math.random() * 2 * Math.PI;
     this.color = userColor;
+    this.hitWall = false;
+}
+
+function Food() {
+    this.x = randInt(0, width);
+    this.y = randInt(0, height);
+    this.eaten = false; // when food is eaten it means it is marked for deletion but hasn't been deleted yet
+}
+
+function LocationMapper() {
+    this.map = {};
+}
+
+LocationMapper.prototype.insert = function(obj) {
+    console.log(obj);
+    const coord = [Math.round(obj.x/10), Math.round(obj.y/10)];
+    console.log(coord);
+    console.log(this);
+    if (this.map[coord] === undefined) {
+        this.map[coord] = [];
+    }
+    this.map[coord].push(obj);
+}
+
+LocationMapper.prototype.nearbyObjects = function(x, y) {
+    let coord = [Math.round(x/10), Math.round(y/10)];
+    return this.map[coord] || [];
 }
 
 
@@ -126,6 +209,10 @@ function randElement(ary) {
     return ary[randInt(0, ary.length - 1)];
 }
 
-function randomSign() {
+function randSign() {
     return randElement([-1, 1]);
+}
+
+function randChance(amt) {
+    return Math.random() > amt;
 }
