@@ -7,6 +7,13 @@
 // if an ant thinks too long it dies as if from overthinking
 
 
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Global setup ///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
 "use strict";
 
 let allAnts = [];
@@ -26,6 +33,41 @@ const ANT_RADIUS = 7;
 const FOOD_RADIUS = 10;
 
 
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Cookie functions ///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+function setCookie(name, value, expires = "") {
+    document.cookie = `${name}=${encodeURIComponent(value)}; ${expires}`;
+}
+
+function getExpires(exdays = 1000) {
+	const d = new Date();
+	d.setTime(d.getTime() + (exdays * 24 * 60 * 60));
+	let expires = "expires="+d.toUTCString();
+}
+
+function getCookie(name) {
+    var value = "; " + document.cookie;
+    var parts = value.split("; " + name + "=");
+    if (parts.length == 2) return decodeURIComponent(parts.pop().split(";").shift());
+}
+
+function removeCookie(name) {
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
+}
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Draw functions /////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
 function setup() {
     createCanvas(displayWidth, displayHeight);
     for (let _ = 0; _ < 100; _++) {
@@ -35,6 +77,21 @@ function setup() {
         ));
     }
 }
+
+
+function draw() {
+    background(220);
+
+    allAnts = updateAnts(allAnts, antQueue);
+    allFood = updateFood(allFood);
+}
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Ant functions //////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 
 function updateFood(allFood) {
@@ -53,15 +110,6 @@ function updateFood(allFood) {
     });
 
     return newFood;
-}
-
-
-function boundCoord(x, y) {
-    if (x > width) x = width;
-    if (y > height) y = height;
-    if (y < 0) y = 0;
-    if (x < 0) x = 0;
-    return [x, y];
 }
 
 
@@ -115,12 +163,20 @@ function updateAnts(allAnts, antQueue) {
 }
 
 
-function draw() {
-    background(220);
-
-    allAnts = updateAnts(allAnts, antQueue);
-    allFood = updateFood(allFood);
+function boundCoord(x, y) {
+    if (x > width) x = width;
+    if (y > height) y = height;
+    if (y < 0) y = 0;
+    if (x < 0) x = 0;
+    return [x, y];
 }
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Classes ////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 
 function Ant(x, y) {
@@ -131,21 +187,20 @@ function Ant(x, y) {
     this.hitWall = false;
 }
 
+
 function Food() {
     this.x = randInt(0, width);
     this.y = randInt(0, height);
     this.eaten = false; // when food is eaten it means it is marked for deletion but hasn't been deleted yet
 }
 
+
 function LocationMapper() {
     this.map = {};
 }
 
 LocationMapper.prototype.insert = function(obj) {
-    console.log(obj);
     const coord = [Math.round(obj.x/10), Math.round(obj.y/10)];
-    console.log(coord);
-    console.log(this);
     if (this.map[coord] === undefined) {
         this.map[coord] = [];
     }
@@ -156,6 +211,41 @@ LocationMapper.prototype.nearbyObjects = function(x, y) {
     let coord = [Math.round(x/10), Math.round(y/10)];
     return this.map[coord] || [];
 }
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Random functions ///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+function randInt(min, max) {
+    let valueRange = max - min + 1; // +1 to be inclusive
+    return Math.floor(Math.random() * valueRange) + min;
+}
+
+
+function randElement(ary) {
+    return ary[randInt(0, ary.length - 1)];
+}
+
+
+function randSign() {
+    return randElement([-1, 1]);
+}
+
+
+function randChance(amt) {
+    return Math.random() > amt;
+}
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Events /////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 
 window.setInterval(() => {
@@ -172,7 +262,6 @@ window.setInterval(() => {
 
 
 antSocket.onopen = function() {
-    console.log('websocket connected');
     antSocket.send(JSON.stringify({
         'type': 'init',
         'id': userId
@@ -182,12 +271,10 @@ antSocket.onopen = function() {
 
 antSocket.onmessage = function(event) {
     let { data } = event
-    console.log(data);
     data = JSON.parse(data);
     
     if (data.type == 'init') {
         readyToSendAnts = true;
-        console.log('ready to send ants');
     }
     
     else if (data.type == 'ant') {
@@ -197,22 +284,4 @@ antSocket.onmessage = function(event) {
             allAnts.push(ant) // again, we can modify allAnts without fear of being interrupted because all these calls are blocking
         });
     }
-}
-
-
-function randInt(min, max) {
-    let valueRange = max - min + 1; // +1 to be inclusive
-    return Math.floor(Math.random() * valueRange) + min;
-}
-
-function randElement(ary) {
-    return ary[randInt(0, ary.length - 1)];
-}
-
-function randSign() {
-    return randElement([-1, 1]);
-}
-
-function randChance(amt) {
-    return Math.random() > amt;
 }
