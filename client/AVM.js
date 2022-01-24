@@ -1,14 +1,6 @@
-// hmmm wondering if it really should be stack based or not (maybe every lowercase letter can be a register or something?)
-    // I'm sure I'd eventually think of something that makes stacks better... think about it a bit
-// lisp? too verbose
-// stack machine? feels kinda impractical (easy to implement, annoying to actually use)
 // nearby items and pickupable items should be completely seperate
 // consider: pheromones, dirt, food, other ants, walls, the Unknown
     // all these things need properties
-// to test approches:
-    // implement current ant behavior in some kind of stack based code
-    // make some slightly more complex ant behavior and implement it in stack code
-    // try the same thing with non stack code, think about language implementation of each
 
 // AVM ERRORS SHOULDNT THROW JAVASCRIPT ERRORS (should instead halt the AVM and just console.error)
     // maybe just have an error stack that stuff gets pushed to that you can inspect after avm executes?
