@@ -177,22 +177,6 @@ a.execute("1 2+M\"test\"123");
 
 
 /*
-
-
-AVM.prototype.parseLiteral = function(nextChar, code) {
-    
-}
-
-AVM.prototype.index = function(nextChar, code) {
-    const toIndex = this.stack.pop();
-    // CALL PARSE LITERAL OR SOMETHING??
-}
-*/
-
-
-
-
-/*
 inputs:
     H: hit wall
     D: current direction
@@ -233,69 +217,4 @@ control flow:
 misc:
     random
     pi
-*/
-
-
-/*
-
-Pl{f?
-
-
-push pickups
-push len of pickups
-start loop
-push pickup[top of stack]
-push (top of stack).eaten
-&&
-
-*/
-
-
-
-/*
-AVM.prototype.pop2 = function() {
-    return [this.pop(), this.pop()];
-}
-
-AVM.prototype.add = function() {
-    const [a, b] = this.pop2();
-    this.push(a + b);
-    return 0;
-}
-
-AVM.prototype.mult = function() {
-    const [a, b] = this.pop2();
-    this.push(a + b);
-    return 0;
-}
-
-AVM.prototype.sub = function() {
-    const [a, b] = this.pop2();
-    this.push(b - a);
-    return 0;
-}
-
-AVM.prototype.div = function() {
-    const [a, b] = this.pop2();
-    this.push(b / a);
-    return 0;
-}
-
-AVM.prototype.mod = function() {
-    const [a, b] = this.pop2();
-    this.push(b % a);
-    return 0;
-}
-
-AVM.prototype.and = function() {
-    const [a, b] = this.pop2();
-    this.push(b && a);
-    return 0;
-}
-
-AVM.prototype.or = function() {
-    const [a, b] = this.pop2();
-    this.push(b || a);
-    return 0;
-}
 */
