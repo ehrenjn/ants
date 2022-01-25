@@ -285,3 +285,11 @@ antSocket.onmessage = function(event) {
         });
     }
 }
+
+
+
+
+var x = document.createElement("INPUT");
+x.setAttribute("type", "text");
+x.setAttribute("value", "Hello World!");
+
