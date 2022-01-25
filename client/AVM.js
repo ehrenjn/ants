@@ -6,16 +6,8 @@
     // maybe just have an error stack that stuff gets pushed to that you can inspect after avm executes?
 // refactor math operations to be generated the same way as getters?
 
-// I want to be able to parse a string and an int in a reasonable way, but also do indexing in a nice way
-    // this is very closely related to looping, so maybe I should handle that first
-    // annoyance is that I dont know if indexing should have its own parsing, or if "[" will just set a flag in the AMV that an index is occuring or what
-        // the flag thing probably makes sense because that lets you use "]" as a "stack[-2][stack[-1]]" operator
-        // WAIT I DONT EVEN NEED A FLAG, "[" COULD LITERALLY BE A NOP AND THE YOU COULD HAVE A GETTER IN THE SQUARE BRACKETS OR ANYTHING ELSE (neat)
-
-// Should looping and if statements use the same mechanisms somehow?
-    // for each and for N loops are easy, should look at how other langs handle while loops
-    // one possible syntax for if statments is just a ternery javascript statement (with maybe a semicolon at the end of the :)
-    // need a seperate stack for loops and conditionals... hopefully I can just do it with 1 stack? maybe 2 would be simpler?
+// Should maybe think about how sandboxed this really is
+    // I'm 90% sure indexing will let you do ACE somehow, although executing random functions might be tricky
 
 
 "use strict";
@@ -36,10 +28,42 @@ function AVMInputs(hitWall, currentDirection, nearbyItems, pickupableItems, inve
     this.ram = ram;
 }
 
+
+function ForNLoopCondition(n, location) {
+    this.location = location;
+    this.finalValue = n;
+    this.nextValue = 0;
+}
+
+ForNLoopCondition.prototype.loop = function() {
+    if (this.nextValue < this.finalValue) {
+        this.currentValue = this.nextValue;
+        this.nextValue += 1;
+        return this.currentValue;
+    }
+}
+
+
+function ForEachLoopCondition(object, location) {
+    this.location = location;
+    this.object = object;
+    this.index = 0;
+}
+
+ForEachLoopCondition.prototype.loop = function() {
+    if (this.index < this.object.length) {
+        this.currentValue = this.object[this.index];
+        this.index += 1;
+        return this.currentValue;
+    }
+}
+
+
 function AVM(hitWall, currentDirection, nearbyItems, pickupableItems, inventory, ram) {
     this.inputs = new AVMInputs(hitWall, currentDirection, nearbyItems, pickupableItems, inventory, ram);
     this.outputs = new AVMOutputs();
     this.stack = [];
+    this.loopStack = [];
 }
 
 
@@ -53,7 +77,7 @@ AVM.prototype.execute = function(code) {
         if (operation === undefined) {
             if (isDigit(opCode)) {
                 nextChar -= 1; // int parsing needs to start at this first digit
-                operation = AVM.prototype.parseInt;
+                operation = AVM.prototype.parseNumber;
             } else {
                 operation = AVM.prototype.nop;
             }
@@ -79,9 +103,9 @@ AVM.prototype.push = function(obj) {
 
 AVM.prototype.nop = function() {}
 
-AVM.prototype.parseInt = function(nextChar, code) {
-    const int = readCharsUntil(nextChar, code, c => !isDigit(c));
-    this.push(parseInt(int));
+AVM.prototype.parseNumber = function(nextChar, code) {
+    const int = readCharsUntil(nextChar, code, c => (!isDigit(c) && c != "."));
+    this.push(parseFloat(int));
     return int.length;
 }
 
@@ -100,8 +124,6 @@ function createAVMGetter(toGet) {
 
 function createAVMSetter(toSet) {
     return function() {
-        console.log(this);
-        console.log(this.outputs);
         this.outputs[toSet] = this.pop();
     }
 }
@@ -121,6 +143,10 @@ function isDigit(char) {
     return char >= '0' && char <= '9'
 }
 
+function peekStack(stack) {
+    return stack[stack.length - 1];
+}
+
 
 AVM.prototype.operations = {
     "+": createAVMMathOperation((a, b) => a + b),
@@ -130,6 +156,7 @@ AVM.prototype.operations = {
     "%": createAVMMathOperation((a, b) => a % b),
     "&": createAVMMathOperation((a, b) => a && b),
     "|": createAVMMathOperation((a, b) => a || b),
+    "=": createAVMMathOperation((a, b) => a == b),
     ">": createAVMMathOperation((a, b) => a > b),
     "<": createAVMMathOperation((a, b) => a < b),
     "]": createAVMMathOperation((a, b) => a[b]),
@@ -147,6 +174,15 @@ AVM.prototype.operations = {
 
     "r": function() { this.push(Math.random()); },
 
+    "d": function() { this.push(peekStack(this.stack)); },
+
+    "f": function() { 
+        const itemName = this.pop().constructor.name;
+        this.push(itemName == 'Food'); 
+    },
+
+    "x": function() { this.pop(); },
+
     '"': function(nextChar, code) {
         const string = readCharsUntil(nextChar, code, c => c == '"');
         this.push(string);
@@ -155,17 +191,64 @@ AVM.prototype.operations = {
 
     "?": function(nextChar, code) {
         if (this.pop()) {
-
+            return 0;
         } else {
-            const skippedCode = readCharsUntil(nextChar, code, c => c == ';' || c == ':');
-            return skippedCode.length;
+            const skippedCode = readCharsUntil(nextChar, code, c => c == ':' || c == ';');
+            return skippedCode.length + 1; // skip the else opcode so that the else branch executes normally
         }
     },
+
+    ":": function(nextChar, code) {
+        const skippedCode = readCharsUntil(nextChar, code, c => c == ';');
+        return skippedCode.length;
+    },
+
+    "{": function(nextChar, code) {
+        const loopObject = this.pop();
+        if (typeof(loopObject) == 'number') {
+            var loopCondition = new ForNLoopCondition(loopObject, nextChar);
+        } else {
+            var loopCondition = new ForEachLoopCondition(loopObject, nextChar);
+        }
+        this.loopStack.push(loopCondition);
+        return readCharsUntil(nextChar, code, c => c == '}').length;
+    },
+
+    "}": function(nextChar) {
+        const loopCondition = peekStack(this.loopStack);
+        const currentValue = loopCondition.loop();
+        if (currentValue !== undefined) {
+            return loopCondition.location - nextChar; // loop back to matching {
+        } else {
+            this.loopStack.pop();
+        }
+    },
+
+    "l": function() {
+        this.push(peekStack(this.loopStack).currentValue)
+    },
+
+    "b": function(nextChar, code) {
+        const skippedCode = readCharsUntil(nextChar, code, c => c == '}');
+        return skippedCode.length + 1;
+    }
 };
 
 
-a = new AVM(false, 0, [], [], [], []);
-a.execute("1 2+M\"test\"123");
+let a = new AVM(false, 0, [1, 7, 10, 12], [], [], []);
+a.execute(
+    `N{
+        ldf?
+            Tb:
+            x;
+    }
+    H?
+        rp**M:
+        r0.2<?
+            p20/r0.5<?
+                0 1-*;
+            D+M;
+        ;`);
 
 
 /*
