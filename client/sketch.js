@@ -32,6 +32,9 @@ const userColor = [
 const ANT_RADIUS = 7;
 const FOOD_RADIUS = 10;
 
+const PICKUP_RADIUS = 10;
+const MAX_OBJECTS_PER_QUERY = 10;
+
 
 
 
@@ -114,7 +117,7 @@ function updateFood(allFood) {
 
 
 function updateAnts(allAnts, antQueue) {
-    let locationMapper = new LocationMapper();
+    let locationMapper = new LocationMapper(PICKUP_RADIUS);
     allAnts.forEach(locationMapper.insert.bind(locationMapper));
     allFood.forEach(locationMapper.insert.bind(locationMapper));
 
@@ -125,7 +128,7 @@ function updateAnts(allAnts, antQueue) {
         const avm = new AVM(
             ant.hitWall,
             ant.direction,
-            locationMapper.nearbyObjects(ant.x, ant.y),
+            locationMapper.nearbyObjects(ant.x, ant.y, MAX_OBJECTS_PER_QUERY),
             [], [], []
         );
         avm.execute('N{ldf?Tb:x;}H?r2p**M:r0.2<?p20/r0.5<?0 1-*;D+M;;');
@@ -196,25 +199,6 @@ function Food() {
     this.y = randInt(0, height);
     this.eaten = false; // when food is eaten it means it is marked for deletion but hasn't been deleted yet
 }
-
-
-function LocationMapper() {
-    this.map = {};
-}
-
-LocationMapper.prototype.insert = function(obj) {
-    const coord = [Math.round(obj.x/10), Math.round(obj.y/10)];
-    if (this.map[coord] === undefined) {
-        this.map[coord] = [];
-    }
-    this.map[coord].push(obj);
-}
-
-LocationMapper.prototype.nearbyObjects = function(x, y) {
-    let coord = [Math.round(x/10), Math.round(y/10)];
-    return this.map[coord] || [];
-}
-
 
 
 
