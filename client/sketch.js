@@ -120,24 +120,27 @@ function updateAnts(allAnts, antQueue) {
 
     let newAnts = [];
     allAnts.forEach(ant => {
+        
+        // run AVM
+        const avm = new AVM(
+            ant.hitWall,
+            ant.direction,
+            locationMapper.nearbyObjects(ant.x, ant.y),
+            [], [], []
+        );
+        avm.execute('N{ldf?Tb:x;}H?r2p**M:r0.2<?p20/r0.5<?0 1-*;D+M;;');
 
-        // ants pick up items
-        locationMapper.nearbyObjects(ant.x, ant.y).forEach(obj => {
-            if (obj.constructor == Food && !obj.eaten) {
-                obj.eaten = true;
-            }
-        });
+        // update ant parameters
+        const newDirection = avm.outputs.movement;
+        ant.direction = newDirection === undefined ? ant.direction : newDirection;
+        const takenItem = avm.outputs.take;
+        if (takenItem !== undefined && takenItem.constructor == Food && !takenItem.eaten) {
+            takenItem.eaten = true;
+        }
+        ant.hitWall = false;
 
-        // ant chooses new direction
-        if (ant.hitWall) { // ant hit a wall last frame
-            ant.hitWall = false;
-            ant.direction = Math.random() * Math.PI * 2;
-        }
-        else if (randChance(0.2)) {
-            let change_amount = (Math.PI / 20) * randSign(); //Math.random() * (Math.PI / 16);
-            ant.direction += change_amount * randSign();
-        }
-        ant.direction %= Math.PI * 2; // normalize direction to be between 0 and 2 pi
+        // normalize direction to be between 0 and 2 pi
+        ant.direction %= Math.PI * 2;
 
         // update ant location
         ant.x += Math.sin(ant.direction); // ants move at velocity 1

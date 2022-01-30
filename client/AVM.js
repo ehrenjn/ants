@@ -1,14 +1,15 @@
-// nearby items and pickupable items should be completely seperate
-// consider: pheromones, dirt, food, other ants, walls, the Unknown
-    // all these things need properties
+/*
+TODO
+consider: pheromones, dirt, food, other ants, walls, the Unknown
+    all these things need properties
 
-// AVM ERRORS SHOULDNT THROW JAVASCRIPT ERRORS (should instead halt the AVM and just console.error)
-    // maybe just have an error stack that stuff gets pushed to that you can inspect after avm executes?
-// refactor math operations to be generated the same way as getters?
+AVM ERRORS SHOULDNT THROW JAVASCRIPT ERRORS (should instead halt the AVM and just console.error)
+    maybe just have an error stack that stuff gets pushed to that you can inspect after avm executes?
+refactor math operations to be generated the same way as getters?
 
-// Should maybe think about how sandboxed this really is
-    // I'm 90% sure indexing will let you do ACE somehow, although executing random functions might be tricky
-
+Should maybe think about how sandboxed this really is
+    I'm 90% sure indexing will let you do ACE somehow, although executing random functions might be tricky
+*/
 
 "use strict";
 
@@ -139,6 +140,35 @@ function readCharsUntil(startingIndex, string, stopCondition) {
     return string.substring(startingIndex, endingIndex);
 }
 
+
+// reads characters until a balanced number of opening and closing chars have been seen, and the stopCondition is met
+function readCharsUntilBalanced(startingIndex, string, openingChar, closingChar, stopCondition) {
+    let foundValidStopCondition = false;
+    let nestedStatementDepth = 0;
+
+    for (var endingIndex = startingIndex; endingIndex < string.length; endingIndex++) {
+        const char = string[endingIndex];
+        if (nestedStatementDepth == 0 && stopCondition(char)) {
+            foundValidStopCondition = true;
+            break;
+        } else if (char == openingChar) {
+            nestedStatementDepth += 1;
+        } else if (char == closingChar) {
+            nestedStatementDepth -= 1;
+            if (nestedStatementDepth < 0) {
+                throw Error("found end of nested statement before beginning");
+            }
+        }
+    }
+
+    if (!foundValidStopCondition) {
+        throw Error("didn't find a balanced stopCondition before end of string");
+    }
+
+    return string.substring(startingIndex, endingIndex);
+}
+
+
 function isDigit(char) {
     return char >= '0' && char <= '9'
 }
@@ -170,6 +200,8 @@ AVM.prototype.operations = {
     "M": createAVMSetter("movement"),
     "U": createAVMSetter("drop"),
 
+    "!": function() { this.push(!this.pop()); },
+
     "p": function() { this.push(Math.PI); },
 
     "r": function() { this.push(Math.random()); },
@@ -193,13 +225,14 @@ AVM.prototype.operations = {
         if (this.pop()) {
             return 0;
         } else {
-            const skippedCode = readCharsUntil(nextChar, code, c => c == ':' || c == ';');
+            const stopCondition = c => c == ':' || c == ';';
+            const skippedCode = readCharsUntilBalanced(nextChar, code, '?', ';', stopCondition);
             return skippedCode.length + 1; // skip the else opcode so that the else branch executes normally
         }
     },
 
     ":": function(nextChar, code) {
-        const skippedCode = readCharsUntil(nextChar, code, c => c == ';');
+        const skippedCode = readCharsUntilBalanced(nextChar, code, '?', ';', c => c == ';');
         return skippedCode.length;
     },
 
@@ -211,7 +244,7 @@ AVM.prototype.operations = {
             var loopCondition = new ForEachLoopCondition(loopObject, nextChar);
         }
         this.loopStack.push(loopCondition);
-        return readCharsUntil(nextChar, code, c => c == '}').length;
+        return readCharsUntilBalanced(nextChar, code, '{', '}', c => c == '}').length;
     },
 
     "}": function(nextChar) {
@@ -229,67 +262,17 @@ AVM.prototype.operations = {
     },
 
     "b": function(nextChar, code) {
-        const skippedCode = readCharsUntil(nextChar, code, c => c == '}');
+        const skippedCode = readCharsUntilBalanced(nextChar, code, '{', '}', c => c == '}');
+        this.loopStack.pop();
         return skippedCode.length + 1;
     }
 };
 
 
-let a = new AVM(false, 0, [1, 7, 10, 12], [], [], []);
-a.execute(
-    `N{
-        ldf?
-            Tb:
-            x;
-    }
-    H?
-        rp**M:
-        r0.2<?
-            p20/r0.5<?
-                0 1-*;
-            D+M;
-        ;`);
-
-
-/*
-inputs:
-    H: hit wall
-    D: current direction
-    N: nearby items
-    P: pickupable items
-    I: inventory
-    R: ram
-    ?: health/hunger/whatever
-
-outputs:
-    T: item to take
-        can multiple items be picked up??
-    M: item to move towards | direction to move
-    U: item to drop / use
-
-operations:
-    + - * / % ^ & | 
-    > <
-    indexing (ram, items, inventory)
-    set/get (for I/O)
-    type checking (for items)
-    propery access (for items) (same as indexing?)
-    push/pop? (for outputs?) (I guess only picking up 1 item per frame makes sense)
-
-control flow:
-    if/else
-    while loop
-    for each loop (probably same as while loop)
-        you could use a { to mean "iterate over whatever is on the stack"
-        if its a number, it subtracts 1 every time it hits the matching } 
-        if its a list, it just iterates over every item
-        if its a boolean, it treats it like a number (1 = iterate once, 0 = don't iterate)
-        this way looping would be the same as conditionals
-    early loop breaking
-        in theoy on a stack machine you could just push a 0... 
-        but I kinda want the loop variables to not be accessible by the programmer because it makes things easier
-
-misc:
-    random
-    pi
-*/
+function tests() {
+    let a = new AVM(false, 0, [1, 2, 3], [], [], []);
+    a.execute("0N{lb{1+}1+}7");
+    console.log(a.stack); // [0, 1, 7]
+    a.execute("0? 1?2:3; :4;");
+    console.log(a.stack); // [4]
+}
