@@ -5,6 +5,7 @@
 // what happens if you disconnect temporarily, so the server forgets about you, and then you start sending ants again?
     // almost feels like we need a new system to make sure no ants are forgotten
 // if an ant thinks too long it dies as if from overthinking
+// need to handle all bad avm code cases like movement not being an object with x and y variables
 
 
 
@@ -24,8 +25,8 @@ const url = "ws://ec2-174-129-172-233.compute-1.amazonaws.com:8080/";
 const antSocket = new WebSocket(url);
 const userId = Math.random();
 const userColor = [
-    randInt(0, 0xFF), 
-    randInt(0, 0xFF), 
+    randInt(0, 0xFF),
+    randInt(0, 0xFF),
     randInt(0, 0xFF),
 ];
 
@@ -33,7 +34,11 @@ const ANT_RADIUS = 7;
 const FOOD_RADIUS = 10;
 
 const PICKUP_RADIUS = 10;
+const NEARBY_RADIUS = 30;
 const MAX_OBJECTS_PER_QUERY = 10;
+
+const FOOD_CLUMP_SIZE = 50;
+let currentFoodClump = [200, 200];
 
 
 
@@ -99,7 +104,16 @@ function draw() {
 
 function updateFood(allFood) {
     if (randChance(0.3) && allFood.length < 100) {
-        allFood.push(new Food());
+        if (randChance(0.01)) {
+            currentFoodClump = [randRange(0, width), randRange(0, height)];
+        }
+        let [foodX, foodY] = currentFoodClump;
+        const direction = randRange(0, 2 * Math.PI);
+        const magnitude = randRange(0, FOOD_CLUMP_SIZE);
+        foodX += Math.sin(direction) * magnitude;
+        foodY += Math.cos(direction) * magnitude;
+        [foodX, foodY] = boundCoord(foodX, foodY);
+        allFood.push(new Food(foodX, foodY));
     }
 
     let newFood = [];
@@ -117,9 +131,12 @@ function updateFood(allFood) {
 
 
 function updateAnts(allAnts, antQueue) {
-    let locationMapper = new LocationMapper(PICKUP_RADIUS);
-    allAnts.forEach(locationMapper.insert.bind(locationMapper));
-    allFood.forEach(locationMapper.insert.bind(locationMapper));
+    let pickupMapper = new LocationMapper(PICKUP_RADIUS);
+    let nearbyMapper = new LocationMapper(NEARBY_RADIUS);
+    allAnts.forEach(pickupMapper.insert.bind(pickupMapper));
+    allFood.forEach(pickupMapper.insert.bind(pickupMapper));
+    allAnts.forEach(nearbyMapper.insert.bind(nearbyMapper));
+    allFood.forEach(nearbyMapper.insert.bind(nearbyMapper));
 
     let newAnts = [];
     allAnts.forEach(ant => {
@@ -128,26 +145,40 @@ function updateAnts(allAnts, antQueue) {
         const avm = new AVM(
             ant.hitWall,
             ant.direction,
-            locationMapper.nearbyObjects(ant.x, ant.y, MAX_OBJECTS_PER_QUERY),
-            [], [], []
+            nearbyMapper.nearbyObjects(ant.x, ant.y, MAX_OBJECTS_PER_QUERY),
+            pickupMapper.nearbyObjects(ant.x, ant.y, MAX_OBJECTS_PER_QUERY),
+            [], []
         );
-        avm.execute('N{ldf?Tb:x;}H?r2p**M:r0.2<?p20/r0.5<?0 1-*;D+M;;');
+        avm.execute('P{ldf?Tb:x;}N{ldf?Mb:x;}H?r2p**M:r0.2<?p20/r0.5<?0 1-*;D+M;;');
+        //avm.execute('P{ldf?Tb:x;}N{ldf?Mb:x;}H?r2p**M;');
 
-        // update ant parameters
+        // update ant direction
         const newDirection = avm.outputs.movement;
-        ant.direction = newDirection === undefined ? ant.direction : newDirection;
+        if (typeof(newDirection) == "number") {
+            ant.direction = newDirection;
+        } else if (newDirection !== undefined) {
+            if (objDistance(ant, newDirection) < NEARBY_RADIUS) {
+                ant.direction = objDirection(ant, newDirection);
+            }
+        }
+        
+        // pick up item
         const takenItem = avm.outputs.take;
         if (takenItem !== undefined && takenItem.constructor == Food && !takenItem.eaten) {
             takenItem.eaten = true;
         }
+
         ant.hitWall = false;
 
         // normalize direction to be between 0 and 2 pi
         ant.direction %= Math.PI * 2;
+        if (ant.direction < 0) {
+            ant.direction += Math.PI * 2;
+        }
 
         // update ant location
-        ant.x += Math.sin(ant.direction); // ants move at velocity 1
-        ant.y += Math.cos(ant.direction);
+        ant.x += Math.cos(ant.direction); // ants move at velocity 1
+        ant.y += Math.sin(ant.direction);
 
         // bound out of bound ants
         if (ant.x > width || ant.y < 0 || ant.x < 0) {
@@ -178,6 +209,32 @@ function boundCoord(x, y) {
 }
 
 
+function objDistance(obj1, obj2) {
+    return ((obj2.x - obj1.x)**2 + (obj2.y - obj1.y)**2)**0.5;
+}
+
+
+// determine direction obj1 must move to get to obj2
+function objDirection(obj1, obj2) {
+    const hyp = objDistance(obj1, obj2);
+    if (hyp == 0) {
+        return 0;
+    }
+    const opp = Math.abs(obj2.y - obj1.y);
+    let angle = Math.asin(opp / hyp);
+
+    if (obj2.x < obj1.x && obj2.y > obj1.y) { // quadrant 2 (bottom left)
+        angle = Math.PI - angle;
+    } else if (obj2.x < obj1.x && obj2.y < obj1.y) { // quadrant 3 (top left)
+        angle = Math.PI + angle;
+    } else if (obj2.x > obj1.x && obj2.y < obj1.y) { // quadrant 4 (top right)
+        angle = Math.PI*2 - angle;
+    }
+
+    return angle;
+}
+
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -188,15 +245,15 @@ function boundCoord(x, y) {
 function Ant(x, y) {
     this.x = x;
     this.y = y;
-    this.direction = Math.random() * 2 * Math.PI;
+    this.direction = randRange(0, 2 * Math.PI);
     this.color = userColor;
     this.hitWall = false;
 }
 
 
-function Food() {
-    this.x = randInt(0, width);
-    this.y = randInt(0, height);
+function Food(x, y) {
+    this.x = x;
+    this.y = y;
     this.eaten = false; // when food is eaten it means it is marked for deletion but hasn't been deleted yet
 }
 
@@ -224,7 +281,12 @@ function randSign() {
 
 
 function randChance(amt) {
-    return Math.random() > amt;
+    return Math.random() < amt;
+}
+
+
+function randRange(min, max) {
+    return Math.random() * (max - min) + min;
 }
 
 
